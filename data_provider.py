@@ -11,7 +11,7 @@ class RawGameData:
     kickoff: datetime
     away_team: str
     home_team: str
-
+    event_id: str | None = None
     away_moneyline: int | None = None
     home_moneyline: int | None = None
 
