@@ -82,7 +82,9 @@ def fetch_nfl_week(
                 kickoff=kickoff,
                 away_team=away_team,
                 home_team=home_team,
-            )
-        )
+                event_id=event.get("id"),
+             )
+        )        
+        
 
     return games
