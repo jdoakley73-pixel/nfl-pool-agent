@@ -26,3 +26,6 @@ jobs:
 
       - name: Run agent test
         run: python test_agent.py
+       
+      - name: Run live schedule test
+        run: python live_test.py
