@@ -4,11 +4,11 @@ from data_provider import RawGameData, build_games
 from future_value import calculate_future_values
 from market import apply_market_to_games
 from pickem import build_pickem_card
+from report import build_full_report
 from survivor import recommend_survivor_pick
 
 
 def main():
-    # Fake current-week games for testing.
     current_games_raw = [
         RawGameData(
             week=1,
@@ -42,19 +42,8 @@ def main():
     games = build_games(current_games_raw)
     games = apply_market_to_games(games)
 
-    print("\n=== PICK'EM CARD ===")
-
     pickem_card = build_pickem_card(games)
 
-    for recommendation in pickem_card:
-        print(
-            f"{recommendation.matchup}: "
-            f"{recommendation.pick} | "
-            f"{recommendation.win_probability:.1%} | "
-            f"{recommendation.confidence}"
-        )
-
-    # Fake future games so we can test Survivor preservation.
     future_games_raw = [
         RawGameData(
             week=2,
@@ -88,19 +77,12 @@ def main():
         future_values=future_values,
     )
 
-    print("\n=== SURVIVOR RANKINGS ===")
+    report = build_full_report(
+        pickem_recommendations=pickem_card,
+        survivor_recommendations=survivor_rankings,
+    )
 
-    for rank, recommendation in enumerate(
-        survivor_rankings,
-        start=1,
-    ):
-        print(
-            f"{rank}. {recommendation.team} over "
-            f"{recommendation.opponent} | "
-            f"Win: {recommendation.win_probability:.1%} | "
-            f"Future value: {recommendation.future_value:.3f} | "
-            f"Score: {recommendation.survivor_score:.3f}"
-        )
+    print(report)
 
 
 if __name__ == "__main__":
