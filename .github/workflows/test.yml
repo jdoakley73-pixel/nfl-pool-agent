@@ -29,3 +29,6 @@ jobs:
        
       - name: Run live schedule test
         run: python live_test.py
+        
+      - name: Run live odds test
+        run: python live_odds_test.py
