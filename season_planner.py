@@ -50,15 +50,15 @@ def available_week_choices(
                 continue
 
             raw_probability = team_probability(
-    game,
-    team,
-)
+                game,
+                team,
+            )
 
-probability = uncertainty_adjusted_probability(
-    win_probability=raw_probability,
-    target_week=game.week,
-    current_week=1,
-)
+            probability = uncertainty_adjusted_probability(
+                win_probability=raw_probability,
+                target_week=game.week,
+                current_week=1,
+            )
 
             if probability < minimum_probability:
                 continue
