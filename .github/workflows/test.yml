@@ -44,3 +44,6 @@ jobs:
 
       - name: Run Survivor state test
         run: python survivor_state_test.py
+
+      - name: Run pool strategy test
+        run: python pool_strategy_test.py
