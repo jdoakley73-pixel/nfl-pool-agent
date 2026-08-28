@@ -2,7 +2,10 @@ from dataclasses import dataclass
 from typing import Dict, List
 
 from season_planner import SurvivorPath
-
+from decision_confidence import (
+    classify_decision_confidence,
+    decision_confidence_reason,
+)
 
 @dataclass
 class SurvivorDecision:
@@ -115,6 +118,18 @@ def build_survivor_decision_report(
         first_team, first_probability = ranked[0]
         second_team, second_probability = ranked[1]
 
+        confidence = classify_decision_confidence(
+            first_probability,
+            second_probability,
+        )
+
+        confidence_reason = decision_confidence_reason(
+            first_team,
+            second_team,
+            first_probability,
+            second_probability,
+        )
+        
         absolute_edge = (
             first_probability
             - second_probability
@@ -126,7 +141,7 @@ def build_survivor_decision_report(
             else 0.0
         )
 
-        lines.extend(
+                lines.extend(
             [
                 "",
                 "Decision margin:",
@@ -135,7 +150,14 @@ def build_survivor_decision_report(
                     f"{absolute_edge:.4%} absolute "
                     f"| {relative_edge:.2%} relative"
                 ),
+                "",
+                "=== SURVIVOR RECOMMENDATION ===",
+                "",
+                f"PRIMARY PICK: {first_team}",
+                f"DECISION CONFIDENCE: {confidence}",
+                f"ALTERNATIVE: {second_team}",
+                "",
+                confidence_reason,
             ]
-        )
-
+                )
     return "\n".join(lines)
