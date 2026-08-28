@@ -35,3 +35,6 @@ jobs:
         
       - name: Run live NFL Pool Agent
         run: python live_agent.py
+            
+      - name: Run Survivor season planner
+        run: python season_planner_test.py
