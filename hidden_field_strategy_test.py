@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from hidden_field_strategy import (
     build_hidden_field_decision,
     rank_hidden_field_options,
@@ -9,6 +11,7 @@ from season_planner import SurvivorPath
 def make_game(home, away, home_prob, away_prob):
     return NFLGame(
         week=1,
+        kickoff=datetime(2026, 9, 13, 12, 0),
         home_team=home,
         away_team=away,
         home_win_prob=home_prob,
