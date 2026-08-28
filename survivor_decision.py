@@ -141,7 +141,7 @@ def build_survivor_decision_report(
             else 0.0
         )
 
-                lines.extend(
+        lines.extend(
             [
                 "",
                 "Decision margin:",
@@ -159,5 +159,5 @@ def build_survivor_decision_report(
                 "",
                 confidence_reason,
             ]
-                )
+        )            
     return "\n".join(lines)
