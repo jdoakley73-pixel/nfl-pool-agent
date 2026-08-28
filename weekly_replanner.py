@@ -113,7 +113,7 @@ def main():
         )
     )
     
-        current_week_games = [
+    current_week_games = [
         game
         for game in all_games
         if game.week == current_week
