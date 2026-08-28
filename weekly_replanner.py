@@ -113,54 +113,63 @@ def main():
         )
     )
     
-    current_week_games = [
+        current_week_games = [
         game
         for game in all_games
         if game.week == current_week
     ]
-ownership_estimates = estimate_survivor_ownership(
-    games=current_week_games,
-    used_teams=state.survivor_used_teams,
-)
 
-ownership_by_team = {
-    estimate.team: estimate.estimated_ownership
-    for estimate in ownership_estimates
-}
+    ownership_estimates = estimate_survivor_ownership(
+        games=current_week_games,
+        used_teams=state.survivor_used_teams,
+    )
+
+    ownership_by_team = {
+        estimate.team: estimate.estimated_ownership
+        for estimate in ownership_estimates
+    }
+
     weekly_decision = build_weekly_survivor_decision(
         week=current_week,
         current_week_games=current_week_games,
         paths=paths,
     )
 
-primary_ownership = ownership_by_team.get(
-    weekly_decision.primary_team,
-    0.0,
-)
+    primary_ownership = ownership_by_team.get(
+        weekly_decision.primary_team,
+        0.0,
+    )
 
-alternative_ownership = ownership_by_team.get(
-    weekly_decision.alternative_team,
-    0.0,
-) if weekly_decision.alternative_team else 0.0
+    alternative_ownership = (
+        ownership_by_team.get(
+            weekly_decision.alternative_team,
+            0.0,
+        )
+        if weekly_decision.alternative_team
+        else 0.0
+    )
+
     print()
     print(
         build_weekly_decision_report(
             weekly_decision
         )
     )
-print()
-print("=== HIDDEN FIELD ESTIMATE ===")
-print()
-print(
-    f"{weekly_decision.primary_team} estimated ownership: "
-    f"{primary_ownership:.1%}"
-)
 
-if weekly_decision.alternative_team:
+    print()
+    print("=== HIDDEN FIELD ESTIMATE ===")
+    print()
+
     print(
-        f"{weekly_decision.alternative_team} estimated ownership: "
-        f"{alternative_ownership:.1%}"
+        f"{weekly_decision.primary_team} estimated ownership: "
+        f"{primary_ownership:.1%}"
     )
+
+    if weekly_decision.alternative_team:
+        print(
+            f"{weekly_decision.alternative_team} estimated ownership: "
+            f"{alternative_ownership:.1%}"
+        )
     print()
     print("=== BEST REMAINING PATH ===")
     print()
