@@ -6,6 +6,7 @@ on:
     branches:
       - main
       - feature/hidden-field-strategy
+      - feature/pool-command-center
 
 jobs:
   test:
@@ -54,3 +55,6 @@ jobs:
 
       - name: Run hidden-field strategy test
         run: python hidden_field_strategy_test.py
+
+      - name: Compile dashboard modules
+        run: python -m py_compile dashboard_service.py dashboard_app.py
