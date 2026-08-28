@@ -14,7 +14,7 @@ from weekly_decision import (
     build_weekly_survivor_decision,
     build_weekly_decision_report,
 )
-from ownership_estimator import estimate_ownership
+from ownership_estimator import estimate_survivor_ownership
 
 SEASON = 2026
 END_WEEK = 18
