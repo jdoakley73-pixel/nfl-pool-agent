@@ -1,4 +1,9 @@
+from pathlib import Path
+
 from state import PoolState, save_state, load_state
+
+
+TEST_STATE_FILE = Path("test_pool_state.json")
 
 
 def main():
@@ -25,9 +30,14 @@ def main():
         f"{sorted(state.survivor_used_teams)}"
     )
 
-    save_state(state)
+    save_state(
+        state,
+        path=TEST_STATE_FILE,
+    )
 
-    restored = load_state()
+    restored = load_state(
+        path=TEST_STATE_FILE,
+    )
 
     print(
         f"Restored used teams: "
@@ -43,6 +53,9 @@ def main():
         raise RuntimeError(
             "Survivor state did not persist correctly."
         )
+
+    if TEST_STATE_FILE.exists():
+        TEST_STATE_FILE.unlink()
 
     print()
     print("Survivor state persistence: PASS")
