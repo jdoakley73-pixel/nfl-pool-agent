@@ -84,7 +84,7 @@ def build_survivor_decision_report(
         f"{decision.recommended_team}",
         "",
         f"Best path survival probability: "
-        f"{decision.best_path_probability:.1%}",
+        f"{decision.best_path_probability:.4%}",
         "",
         "Best path by Week 1 choice:",
     ]
@@ -95,12 +95,47 @@ def build_survivor_decision_report(
         reverse=True,
     )
 
+    best_probability = ranked[0][1]
+
     for team, probability in ranked:
-        cost = decision.opportunity_costs[team]
+        cost = best_probability - probability
+
+        if best_probability > 0:
+            relative_cost = cost / best_probability
+        else:
+            relative_cost = 0.0
 
         lines.append(
-            f"{team}: {probability:.1%} "
-            f"| Cost vs best: {cost:.1%}"
+            f"{team}: {probability:.4%} "
+            f"| Cost vs best: {cost:.4%} "
+            f"| Relative gap: {relative_cost:.2%}"
+        )
+
+    if len(ranked) >= 2:
+        first_team, first_probability = ranked[0]
+        second_team, second_probability = ranked[1]
+
+        absolute_edge = (
+            first_probability
+            - second_probability
+        )
+
+        relative_edge = (
+            absolute_edge / second_probability
+            if second_probability > 0
+            else 0.0
+        )
+
+        lines.extend(
+            [
+                "",
+                "Decision margin:",
+                (
+                    f"{first_team} over {second_team}: "
+                    f"{absolute_edge:.4%} absolute "
+                    f"| {relative_edge:.2%} relative"
+                ),
+            ]
         )
 
     return "\n".join(lines)
