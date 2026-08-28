@@ -38,3 +38,6 @@ jobs:
             
       - name: Run Survivor season planner
         run: python season_planner_test.py
+
+      - name: Run Survivor state test
+        run: python survivor_state_test.py
