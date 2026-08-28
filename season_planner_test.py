@@ -5,7 +5,10 @@ from espn_provider import fetch_nfl_week
 from market import apply_market_to_games
 from odds_provider import fetch_event_odds
 from season_planner import best_survivor_paths
-
+from survivor_decision import (
+    analyze_survivor_paths,
+    build_survivor_decision_report,
+)
 
 SEASON = 2026
 START_WEEK = 1
@@ -105,6 +108,14 @@ def main():
             "No Survivor paths were generated."
         )
 
+    decision = analyze_survivor_paths(paths)
 
+    print()
+    print(
+        build_survivor_decision_report(
+            decision
+        )
+    )
+    
 if __name__ == "__main__":
     main()
