@@ -2,8 +2,14 @@ from typing import List
 
 from data_provider import RawGameData, build_games
 from espn_provider import fetch_nfl_week
+from hidden_field_strategy import (
+    DEFAULT_POOL_SIZE,
+    build_hidden_field_decision,
+    build_hidden_field_report,
+)
 from market import apply_market_to_games
 from odds_provider import fetch_event_odds
+from ownership_estimator import estimate_survivor_ownership
 from season_planner import best_survivor_paths
 from state import load_state
 from survivor_decision import (
@@ -14,81 +20,49 @@ from weekly_decision import (
     build_weekly_survivor_decision,
     build_weekly_decision_report,
 )
-from ownership_estimator import estimate_survivor_ownership
 
 SEASON = 2026
 END_WEEK = 18
 
 
-def add_live_odds(
-    raw_games: List[RawGameData],
-) -> List[RawGameData]:
+def add_live_odds(raw_games: List[RawGameData]) -> List[RawGameData]:
     games_with_odds = []
-
     for game in raw_games:
         if not game.event_id:
             continue
-
         odds = fetch_event_odds(game.event_id)
-
         if odds is None:
             continue
-
         game.away_moneyline = odds["away_moneyline"]
         game.home_moneyline = odds["home_moneyline"]
         game.spread = odds["spread"]
         game.total = odds["total"]
-
         games_with_odds.append(game)
-
     return games_with_odds
 
 
-def fetch_week_with_odds(
-    season: int,
-    week: int,
-):
-    raw_games = fetch_nfl_week(
-        season=season,
-        week=week,
-    )
-
+def fetch_week_with_odds(season: int, week: int):
+    raw_games = fetch_nfl_week(season=season, week=week)
     raw_games = add_live_odds(raw_games)
-
     games = build_games(raw_games)
-
     return apply_market_to_games(games)
 
 
 def main():
     state = load_state()
-
     current_week = state.current_week
 
     print(
         f"\n=== WEEKLY SURVIVOR REPLANNER ===\n"
         f"Season: {SEASON}\n"
         f"Current week: {current_week}\n"
-        f"Used teams: "
-        f"{sorted(state.survivor_used_teams)}\n"
+        f"Used teams: {sorted(state.survivor_used_teams)}\n"
     )
 
     all_games = []
-
-    for week in range(
-        current_week,
-        END_WEEK + 1,
-    ):
-        games = fetch_week_with_odds(
-            season=SEASON,
-            week=week,
-        )
-
-        print(
-            f"Week {week}: "
-            f"{len(games)} games with odds"
-        )
-
+    for week in range(current_week, END_WEEK + 1):
+        games = fetch_week_with_odds(season=SEASON, week=week)
+        print(f"Week {week}: {len(games)} games with odds")
         all_games.extend(games)
 
     paths = best_survivor_paths(
@@ -98,32 +72,20 @@ def main():
         used_teams=state.survivor_used_teams,
         top_n=500,
     )
-
     if not paths:
-        raise RuntimeError(
-            "No valid Survivor paths were generated."
-        )
+        raise RuntimeError("No valid Survivor paths were generated.")
 
     decision = analyze_survivor_paths(paths)
-
     print()
-    print(
-        build_survivor_decision_report(
-            decision
-        )
-    )
-    
-    current_week_games = [
-        game
-        for game in all_games
-        if game.week == current_week
-    ]
+    print(build_survivor_decision_report(decision))
 
+    current_week_games = [
+        game for game in all_games if game.week == current_week
+    ]
     ownership_estimates = estimate_survivor_ownership(
         games=current_week_games,
         used_teams=state.survivor_used_teams,
     )
-
     ownership_by_team = {
         estimate.team: estimate.estimated_ownership
         for estimate in ownership_estimates
@@ -134,53 +96,30 @@ def main():
         current_week_games=current_week_games,
         paths=paths,
     )
+    print()
+    print(build_weekly_decision_report(weekly_decision))
 
-    primary_ownership = ownership_by_team.get(
-        weekly_decision.primary_team,
-        0.0,
+    hidden_field_decision = build_hidden_field_decision(
+        week=current_week,
+        current_week_games=current_week_games,
+        paths=paths,
+        ownership_by_team=ownership_by_team,
+        pool_size=DEFAULT_POOL_SIZE,
     )
-
-    alternative_ownership = (
-        ownership_by_team.get(
-            weekly_decision.alternative_team,
-            0.0,
-        )
-        if weekly_decision.alternative_team
-        else 0.0
-    )
-
     print()
     print(
-        build_weekly_decision_report(
-            weekly_decision
+        build_hidden_field_report(
+            hidden_field_decision,
+            pool_size=DEFAULT_POOL_SIZE,
         )
     )
 
-    print()
-    print("=== HIDDEN FIELD ESTIMATE ===")
-    print()
-
-    print(
-        f"{weekly_decision.primary_team} estimated ownership: "
-        f"{primary_ownership:.1%}"
-    )
-
-    if weekly_decision.alternative_team:
-        print(
-            f"{weekly_decision.alternative_team} estimated ownership: "
-            f"{alternative_ownership:.1%}"
-        )
     print()
     print("=== BEST REMAINING PATH ===")
     print()
-
     best_path = paths[0]
-
     for week in sorted(best_path.picks):
-        print(
-            f"Week {week}: "
-            f"{best_path.picks[week]}"
-        )
+        print(f"Week {week}: {best_path.picks[week]}")
 
 
 if __name__ == "__main__":
