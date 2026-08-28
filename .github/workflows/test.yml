@@ -47,3 +47,6 @@ jobs:
 
       - name: Run pool strategy test
         run: python pool_strategy_test.py
+
+      - name: Run ownership estimator test
+        run: python ownership_estimator_test.py
