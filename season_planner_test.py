@@ -9,6 +9,7 @@ from survivor_decision import (
     analyze_survivor_paths,
     build_survivor_decision_report,
 )
+from state import load_state
 
 SEASON = 2026
 START_WEEK = 1
@@ -73,12 +74,19 @@ def main():
         )
 
         all_games.extend(games)
+        
+    state = load_state()
 
+    print(
+        f"Used Survivor teams: "
+        f"{sorted(state.survivor_used_teams)}"
+    )
+    
     paths = best_survivor_paths(
         games=all_games,
         start_week=START_WEEK,
         end_week=END_WEEK,
-        used_teams=set(),
+        used_teams=state.survivor_used_teams,
         top_n=10,
     )
 
