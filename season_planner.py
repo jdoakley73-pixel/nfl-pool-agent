@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from typing import Dict, List, Set, Tuple
 
 from models import NFLGame
-
+from future_weighting import uncertainty_adjusted_probability
 
 @dataclass
 class SurvivorPath:
@@ -49,10 +49,16 @@ def available_week_choices(
             if team in used_teams:
                 continue
 
-            probability = team_probability(
-                game,
-                team,
-            )
+            raw_probability = team_probability(
+    game,
+    team,
+)
+
+probability = uncertainty_adjusted_probability(
+    win_probability=raw_probability,
+    target_week=game.week,
+    current_week=1,
+)
 
             if probability < minimum_probability:
                 continue
