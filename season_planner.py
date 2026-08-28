@@ -1,8 +1,9 @@
 from dataclasses import dataclass
 from typing import Dict, List, Set, Tuple
 
-from models import NFLGame
 from future_weighting import uncertainty_adjusted_probability
+from models import NFLGame
+
 
 @dataclass
 class SurvivorPath:
@@ -41,6 +42,7 @@ def available_week_choices(
     games: List[NFLGame],
     used_teams: Set[str],
     minimum_probability: float = 0.50,
+    current_week: int = 1,
 ) -> List[Tuple[str, float]]:
     choices: List[Tuple[str, float]] = []
 
@@ -57,7 +59,7 @@ def available_week_choices(
             probability = uncertainty_adjusted_probability(
                 win_probability=raw_probability,
                 target_week=game.week,
-                current_week=1,
+                current_week=current_week,
             )
 
             if probability < minimum_probability:
@@ -131,10 +133,11 @@ def search_survivor_paths(
                 games=week_games,
                 used_teams=path_used_teams,
                 minimum_probability=minimum_probability,
+                current_week=start_week,
             )
-            
+
             choices = choices[:12]
-            
+
             for team, probability in choices:
                 picks = dict(path.picks)
                 picks[week] = team
