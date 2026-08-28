@@ -13,7 +13,7 @@ from state import load_state
 
 SEASON = 2026
 START_WEEK = 1
-END_WEEK = 5
+END_WEEK = 18
 
 
 def add_live_odds(
