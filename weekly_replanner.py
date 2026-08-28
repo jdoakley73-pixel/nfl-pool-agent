@@ -10,7 +10,10 @@ from survivor_decision import (
     analyze_survivor_paths,
     build_survivor_decision_report,
 )
-
+from weekly_decision import (
+    build_weekly_survivor_decision,
+    build_weekly_decision_report,
+)
 
 SEASON = 2026
 END_WEEK = 18
@@ -106,6 +109,25 @@ def main():
     print(
         build_survivor_decision_report(
             decision
+        )
+    )
+    
+    current_week_games = [
+        game
+        for game in all_games
+        if game.week == current_week
+    ]
+
+    weekly_decision = build_weekly_survivor_decision(
+        week=current_week,
+        current_week_games=current_week_games,
+        paths=paths,
+    )
+
+    print()
+    print(
+        build_weekly_decision_report(
+            weekly_decision
         )
     )
 
