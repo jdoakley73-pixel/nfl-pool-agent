@@ -77,7 +77,7 @@ def search_survivor_paths(
     end_week: int,
     used_teams: Set[str] | None = None,
     minimum_probability: float = 0.50,
-    beam_width: int = 100,
+    beam_width: int = 500,
 ) -> List[SurvivorPath]:
     """
     Search for strong Survivor paths across multiple weeks.
@@ -126,7 +126,9 @@ def search_survivor_paths(
                 used_teams=path_used_teams,
                 minimum_probability=minimum_probability,
             )
-
+            
+            choices = choices[:12]
+            
             for team, probability in choices:
                 picks = dict(path.picks)
                 picks[week] = team
