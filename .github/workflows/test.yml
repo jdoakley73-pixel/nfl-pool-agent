@@ -32,3 +32,6 @@ jobs:
         
       - name: Run live odds test
         run: python live_odds_test.py
+        
+      - name: Run live NFL Pool Agent
+        run: python live_agent.py
