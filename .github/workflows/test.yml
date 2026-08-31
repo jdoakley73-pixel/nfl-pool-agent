@@ -9,6 +9,7 @@ on:
       - feature/pool-command-center
       - feature/mobile-tighten
       - feature/draft-command-center-v2
+      - feature/draft-slot-11-command-center
 
 jobs:
   test:
@@ -59,4 +60,4 @@ jobs:
         run: python hidden_field_strategy_test.py
 
       - name: Compile dashboard modules
-        run: python -m py_compile dashboard_service.py dashboard_app.py fantasy_gm.py fantasy_rankings_provider.py
+        run: python -m py_compile dashboard_service.py dashboard_app.py fantasy_gm.py fantasy_rankings_provider.py fantasy_draft_strategy.py

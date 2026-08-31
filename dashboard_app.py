@@ -2,6 +2,7 @@ import pandas as pd
 import streamlit as st
 
 from dashboard_service import build_command_center_data
+from fantasy_draft_strategy import build_turn_recommendations, snake_attack_map, upcoming_user_picks
 from fantasy_gm import DraftPlayer, rank_draft_board, roster_counts
 from fantasy_rankings_provider import fetch_live_rankings
 from state import load_state
@@ -92,44 +93,111 @@ with pickem_tab:
 
 with fantasy_tab:
     st.subheader("Fantasy Football GM")
-    draft_mode, weekly_mode = st.tabs(["🎯 Draft", "📋 Weekly GM"])
+    draft_mode, weekly_mode = st.tabs(["🎯 Draft Command Center", "📋 Weekly GM"])
 
     with draft_mode:
-        scoring = st.segmented_control("Scoring", ["PPR", "Half PPR", "Standard"], default="PPR")
-        scoring = scoring or "PPR"
+        st.markdown("### 2026 Yahoo Draft War Room")
+        st.caption("12 teams • Half PPR • 6-pt pass TD • 1 pt / 20 pass yds • -1 per QB sack • Pick 11")
+
+        setup1, setup2, setup3 = st.columns(3)
+        scoring = setup1.segmented_control("Scoring", ["PPR", "Half PPR", "Standard"], default="Half PPR")
+        scoring = scoring or "Half PPR"
+        team_count = int(setup2.number_input("League teams", min_value=8, max_value=16, value=12, step=1))
+        max_slot = team_count
+        draft_slot = int(setup3.number_input("Draft slot", min_value=1, max_value=max_slot, value=min(11, max_slot), step=1))
+
         board_key = f"draft_pool_{scoring}"
         if "draft_roster" not in st.session_state:
             st.session_state.draft_roster = []
+        if "draft_log" not in st.session_state:
+            st.session_state.draft_log = []
 
         if board_key not in st.session_state:
             try:
                 with st.spinner("Loading live 2026 draft rankings…"):
                     st.session_state[board_key] = load_fantasy_rankings(scoring)
-            except Exception as exc:
+            except Exception:
                 st.session_state[board_key] = []
                 st.warning("Live rankings could not load. You can retry or add players manually.")
 
         draft_pool = st.session_state[board_key]
-        top1, top2 = st.columns(2)
-        top1.metric("Available players", len(draft_pool))
-        top2.metric("My roster", len(st.session_state.draft_roster))
+        current_overall_pick = len(st.session_state.draft_log) + 1
+        next_picks = upcoming_user_picks(current_overall_pick, draft_slot, team_count, rounds=18, limit=4)
+        next_user_pick = next_picks[0] if next_picks else None
+        picks_away = max(0, next_user_pick - current_overall_pick) if next_user_pick else None
 
-        if st.button("Reload 2026 rankings", use_container_width=True):
+        top1, top2, top3, top4 = st.columns(4)
+        top1.metric("Draft slot", f"{draft_slot}/{team_count}")
+        top2.metric("Overall pick", current_overall_pick)
+        top3.metric("Next pick", next_user_pick if next_user_pick else "—")
+        top4.metric("Picks away", picks_away if picks_away is not None else "—")
+
+        with st.expander("🔥 Pick-by-pick attack map", expanded=True):
+            attack_rows = snake_attack_map(draft_slot, team_count, rounds=10)
+            attack_df = pd.DataFrame([
+                {
+                    "Round": row["round"],
+                    "My pick": f"{row['round']}.{draft_slot if row['round'] % 2 == 1 else team_count - draft_slot + 1:02d}",
+                    "Overall": row["overall_pick"],
+                    "Plan": (
+                        "Elite RB/WR — best player, no forced build"
+                        if row["round"] <= 2
+                        else "Exploit turn tiers — RB/WR core first"
+                        if row["round"] <= 5
+                        else "QB/TE only at value; attack upside RB/WR"
+                        if row["round"] <= 8
+                        else "Upside bench swings; K/DST stay late"
+                    ),
+                }
+                for row in attack_rows
+            ])
+            st.dataframe(attack_df, use_container_width=True, hide_index=True)
+            st.caption("At 11/12 the first five turns are 1.11/2.02, 3.11/4.02, 5.11/6.02, 7.11/8.02 and 9.11/10.02. Think in two-player combinations.")
+
+        action1, action2 = st.columns(2)
+        if action1.button("Reload 2026 rankings", use_container_width=True):
             try:
                 load_fantasy_rankings.clear()
                 st.session_state[board_key] = load_fantasy_rankings(scoring)
                 st.rerun()
             except Exception:
                 st.error("Could not refresh rankings right now.")
+        if action2.button("Reset draft room", use_container_width=True):
+            st.session_state.draft_roster = []
+            st.session_state.draft_log = []
+            try:
+                load_fantasy_rankings.clear()
+                st.session_state[board_key] = load_fantasy_rankings(scoring)
+            except Exception:
+                st.session_state[board_key] = []
+            st.rerun()
 
         counts = roster_counts(st.session_state.draft_roster)
         board = rank_draft_board(draft_pool, counts)
         if board:
-            best = board[0]
-            next_best = board[1:4]
-            st.success(f"PICK NOW: {best['name']} ({best['position']}{best['position_rank']}) — {'fills a starting need' if best['roster_need'] else 'best current value'}")
-            if next_best:
-                st.caption("Next: " + " • ".join(f"{p['name']} {p['position']}{p['position_rank']}" for p in next_best))
+            advice = build_turn_recommendations(board, counts)
+            take = advice["take"]
+            pair = advice["pair"]
+            backup = advice["backup"]
+            avoid_reach = advice["avoid_reach"]
+
+            if next_user_pick == current_overall_pick:
+                st.error(f"🚨 ON THE CLOCK — PICK {next_user_pick}")
+            elif picks_away is not None and picks_away <= 4:
+                st.warning(f"⚠️ GET READY — {picks_away} pick{'s' if picks_away != 1 else ''} until {next_user_pick}")
+
+            st.markdown("### Live turn plan")
+            plan1, plan2 = st.columns(2)
+            plan1.success(f"TAKE: {take['name']} ({take['position']}{take['position_rank']})")
+            if pair:
+                plan2.info(f"PAIR TARGET: {pair['name']} ({pair['position']}{pair['position_rank']})")
+            if backup:
+                st.caption(f"BACKUP: {backup['name']} {backup['position']}{backup['position_rank']}")
+            if avoid_reach:
+                st.caption(f"DO NOT REACH: {avoid_reach['name']} at this price — better board value remains.")
+
+            if len(next_picks) >= 2:
+                st.caption(f"Upcoming turn picks: {next_picks[0]} → {next_picks[1]}. We can plan the pair instead of treating them as isolated picks.")
 
             pos_filter = st.multiselect("Show positions", ["QB", "RB", "WR", "TE", "K", "DST"], default=["QB", "RB", "WR", "TE"])
             visible = [row for row in board if row["position"] in pos_filter][:75]
@@ -144,10 +212,12 @@ with fantasy_tab:
             if d1.button("Mine", use_container_width=True):
                 player = next(p for p in draft_pool if p.name == drafted_name)
                 st.session_state.draft_roster.append(player)
+                st.session_state.draft_log.append({"pick": current_overall_pick, "player": player.name, "team": "Mine", "position": player.position})
                 draft_pool.remove(player)
                 st.rerun()
             if d2.button("Someone else", use_container_width=True):
                 player = next(p for p in draft_pool if p.name == drafted_name)
+                st.session_state.draft_log.append({"pick": current_overall_pick, "player": player.name, "team": "Other", "position": player.position})
                 draft_pool.remove(player)
                 st.rerun()
         else:
@@ -167,12 +237,21 @@ with fantasy_tab:
                     draft_pool.append(DraftPlayer(name=name.strip(), position=position, team=team.strip().upper(), rank=int(rank), adp=float(adp), tier=int(tier)))
                     st.rerun()
 
-        with st.expander("My roster", expanded=True):
-            if st.session_state.draft_roster:
-                st.dataframe(pd.DataFrame([{"Player": p.name, "Pos": p.position, "Team": p.team, "Bye": p.bye} for p in st.session_state.draft_roster]), use_container_width=True, hide_index=True)
-            else:
-                st.write("No players drafted yet.")
-        st.caption("Draft rankings source: live FantasyPros consensus board. Yahoo sync can replace manual pick tracking when API access is available.")
+        roster_col, log_col = st.columns(2)
+        with roster_col:
+            with st.expander("My roster", expanded=True):
+                if st.session_state.draft_roster:
+                    st.dataframe(pd.DataFrame([{"Player": p.name, "Pos": p.position, "Team": p.team, "Bye": p.bye} for p in st.session_state.draft_roster]), use_container_width=True, hide_index=True)
+                else:
+                    st.write("No players drafted yet.")
+        with log_col:
+            with st.expander("Draft log", expanded=True):
+                if st.session_state.draft_log:
+                    st.dataframe(pd.DataFrame(st.session_state.draft_log), use_container_width=True, hide_index=True)
+                else:
+                    st.write("Draft has not started.")
+
+        st.caption("Draft rankings source: live FantasyPros consensus board. Manual pick tracking powers the live turn planner until Yahoo read-only API access is available.")
 
     with weekly_mode:
         st.markdown("### Weekly GM workspace")
