@@ -2,7 +2,7 @@ import pandas as pd
 import streamlit as st
 
 from dashboard_service import build_command_center_data
-from fantasy_draft_strategy import build_turn_recommendations, snake_attack_map, upcoming_user_picks
+from fantasy_draft_strategy import build_pick_target_tiers, build_turn_recommendations, snake_attack_map, upcoming_user_picks
 from fantasy_gm import DraftPlayer, rank_draft_board, roster_counts
 from fantasy_rankings_provider import fetch_live_rankings
 from state import load_state
@@ -40,13 +40,16 @@ with st.sidebar:
         st.cache_data.clear()
         st.rerun()
 
+
 @st.cache_data(ttl=1800, show_spinner=False)
 def load_dashboard_snapshot(pool_size_value: int):
     return build_command_center_data(state=load_state(), pool_size=pool_size_value)
 
+
 @st.cache_data(ttl=3600, show_spinner=False)
 def load_fantasy_rankings(scoring: str):
     return fetch_live_rankings(scoring=scoring, limit=300)
+
 
 with st.spinner("Building the live football board…"):
     try:
@@ -82,12 +85,26 @@ with survivor_tab:
     x2.metric("Best path", f"{snapshot['best_path_probability']:.3%}")
     x3.metric("Status", "ALIVE" if snapshot["survivor_alive"] else "OUT")
     with st.expander("Best remaining path"):
-        st.dataframe(pd.DataFrame([{"Week": week, "Team": team} for week, team in sorted(snapshot["best_path"].items())]), use_container_width=True, hide_index=True, height=420)
+        st.dataframe(
+            pd.DataFrame([{"Week": week, "Team": team} for week, team in sorted(snapshot["best_path"].items())]),
+            use_container_width=True,
+            hide_index=True,
+            height=420,
+        )
     st.caption("Ownership is modeled before lock because PoolHost selections are hidden. Current-week survival stays dominant.")
 
 with pickem_tab:
     st.subheader(f"Week {snapshot['current_week']} Pick'em")
-    rows = [{"Matchup": item["matchup"], "Pick": item["pick"], "Win %": round(item["win_probability"] * 100, 1), "Confidence": item["confidence"], "Leverage": "⚡" if item["leverage_flag"] else ""} for item in snapshot["pickem_card"]]
+    rows = [
+        {
+            "Matchup": item["matchup"],
+            "Pick": item["pick"],
+            "Win %": round(item["win_probability"] * 100, 1),
+            "Confidence": item["confidence"],
+            "Leverage": "⚡" if item["leverage_flag"] else "",
+        }
+        for item in snapshot["pickem_card"]
+    ]
     st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True, height=520)
     st.caption("Market-derived win probability drives the card; public-pick leverage can be layered in when reliable selection data is available.")
 
@@ -132,26 +149,40 @@ with fantasy_tab:
         top3.metric("Next pick", next_user_pick if next_user_pick else "—")
         top4.metric("Picks away", picks_away if picks_away is not None else "—")
 
-        with st.expander("🔥 Pick-by-pick attack map", expanded=True):
+        with st.expander("🔥 Pick-by-pick player attack map", expanded=True):
             attack_rows = snake_attack_map(draft_slot, team_count, rounds=10)
-            attack_df = pd.DataFrame([
-                {
-                    "Round": row["round"],
-                    "My pick": f"{row['round']}.{draft_slot if row['round'] % 2 == 1 else team_count - draft_slot + 1:02d}",
-                    "Overall": row["overall_pick"],
-                    "Plan": (
-                        "Elite RB/WR — best player, no forced build"
-                        if row["round"] <= 2
-                        else "Exploit turn tiers — RB/WR core first"
-                        if row["round"] <= 5
-                        else "QB/TE only at value; attack upside RB/WR"
-                        if row["round"] <= 8
-                        else "Upside bench swings; K/DST stay late"
-                    ),
-                }
-                for row in attack_rows
-            ])
-            st.dataframe(attack_df, use_container_width=True, hide_index=True)
+            target_rows = build_pick_target_tiers(draft_pool, draft_slot, team_count, rounds=10, names_per_tier=4) if draft_pool else []
+            target_by_round = {row["round"]: row for row in target_rows}
+
+            attack_table = []
+            for row in attack_rows:
+                target = target_by_round.get(row["round"], {})
+                round_number = row["round"]
+                my_slot = draft_slot if round_number % 2 == 1 else team_count - draft_slot + 1
+                plan = (
+                    "Elite RB/WR — best player, no forced build"
+                    if round_number <= 2
+                    else "Exploit turn tiers — RB/WR core first"
+                    if round_number <= 5
+                    else "QB/TE only at value; attack upside RB/WR"
+                    if round_number <= 8
+                    else "Upside bench swings; K/DST stay late"
+                )
+                attack_table.append(
+                    {
+                        "Round": round_number,
+                        "My pick": f"{round_number}.{my_slot:02d}",
+                        "Overall": row["overall_pick"],
+                        "Dream fall": " • ".join(target.get("dream_fall", [])) or "—",
+                        "Core targets": " • ".join(target.get("core_targets", [])) or "—",
+                        "Gone by next turn?": " • ".join(target.get("next_turn_risk", [])) or "—",
+                        "Reach ceiling": target.get("reach_ceiling", "—"),
+                        "Plan": plan,
+                    }
+                )
+
+            st.dataframe(pd.DataFrame(attack_table), use_container_width=True, hide_index=True, height=460)
+            st.caption("Player bands update from the live Half-PPR consensus/ADP board. DREAM FALL = steal if he reaches us. CORE = fair-value targets. GONE BY NEXT TURN = decide now or accept losing him. REACH CEILING = the furthest the market says we should stretch without a special roster reason.")
             st.caption("At 11/12 the first five turns are 1.11/2.02, 3.11/4.02, 5.11/6.02, 7.11/8.02 and 9.11/10.02. Think in two-player combinations.")
 
         action1, action2 = st.columns(2)
@@ -234,14 +265,27 @@ with fantasy_tab:
                 adp = p5.number_input("ADP", min_value=1.0, max_value=500.0, value=100.0)
                 tier = p6.number_input("Tier", min_value=1, max_value=30, value=5)
                 if st.form_submit_button("Add to board") and name.strip():
-                    draft_pool.append(DraftPlayer(name=name.strip(), position=position, team=team.strip().upper(), rank=int(rank), adp=float(adp), tier=int(tier)))
+                    draft_pool.append(
+                        DraftPlayer(
+                            name=name.strip(),
+                            position=position,
+                            team=team.strip().upper(),
+                            rank=int(rank),
+                            adp=float(adp),
+                            tier=int(tier),
+                        )
+                    )
                     st.rerun()
 
         roster_col, log_col = st.columns(2)
         with roster_col:
             with st.expander("My roster", expanded=True):
                 if st.session_state.draft_roster:
-                    st.dataframe(pd.DataFrame([{"Player": p.name, "Pos": p.position, "Team": p.team, "Bye": p.bye} for p in st.session_state.draft_roster]), use_container_width=True, hide_index=True)
+                    st.dataframe(
+                        pd.DataFrame([{"Player": p.name, "Pos": p.position, "Team": p.team, "Bye": p.bye} for p in st.session_state.draft_roster]),
+                        use_container_width=True,
+                        hide_index=True,
+                    )
                 else:
                     st.write("No players drafted yet.")
         with log_col:
