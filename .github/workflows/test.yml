@@ -10,6 +10,7 @@ on:
       - feature/mobile-tighten
       - feature/draft-command-center-v2
       - feature/draft-slot-11-command-center
+      - fix/fantasy-player-feed-draft-ready
 
 jobs:
   test:
@@ -58,6 +59,9 @@ jobs:
 
       - name: Run hidden-field strategy test
         run: python hidden_field_strategy_test.py
+
+      - name: Run fantasy rankings resilience test
+        run: python fantasy_rankings_provider_test.py
 
       - name: Compile dashboard modules
         run: python -m py_compile dashboard_service.py dashboard_app.py fantasy_gm.py fantasy_rankings_provider.py fantasy_draft_strategy.py
