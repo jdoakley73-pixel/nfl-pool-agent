@@ -6,6 +6,7 @@ from fantasy_draft_strategy import build_pick_target_tiers, build_turn_recommend
 from fantasy_gm import DraftPlayer, rank_draft_board, roster_counts
 from fantasy_rankings_provider import fetch_live_rankings
 from state import load_state
+from weekly_gm_ui import render_weekly_gm
 
 st.set_page_config(page_title="Football Command Center", page_icon="🏈", layout="wide")
 st.markdown("""
@@ -298,9 +299,7 @@ with fantasy_tab:
         st.caption("Draft rankings source: live FantasyPros consensus board. Manual pick tracking powers the live turn planner until Yahoo read-only API access is available.")
 
     with weekly_mode:
-        st.markdown("### Weekly GM workspace")
-        st.info("Bridge mode while Yahoo API access is unresolved. Next up: lineup, bench, waiver, injury/bye alerts and a prioritized GM action list.")
-        st.write("Roster snapshot → start/sit → waivers → injury/bye flags → final lineup checklist")
+        render_weekly_gm()
 
 st.divider()
 st.caption("PoolHost and Yahoo remain the official submission venues. This is the decision layer.")
