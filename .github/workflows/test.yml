@@ -11,6 +11,7 @@ on:
       - feature/draft-command-center-v2
       - feature/draft-slot-11-command-center
       - fix/fantasy-player-feed-draft-ready
+      - feature/sportsline-intelligence
 
 jobs:
   test:
@@ -63,5 +64,8 @@ jobs:
       - name: Run fantasy rankings resilience test
         run: python fantasy_rankings_provider_test.py
 
+      - name: Run SportsLine intelligence test
+        run: python sportsline_intelligence_test.py
+
       - name: Compile dashboard modules
-        run: python -m py_compile dashboard_service.py dashboard_app.py fantasy_gm.py fantasy_rankings_provider.py fantasy_draft_strategy.py
+        run: python -m py_compile dashboard_service.py dashboard_app.py fantasy_gm.py fantasy_rankings_provider.py fantasy_draft_strategy.py sportsline_intelligence.py
