@@ -9,6 +9,7 @@ from yahoo_fantasy import (
     new_state,
     refresh_access_token,
     token_expired,
+    valid_state,
 )
 
 DEFAULT_REDIRECT_URI = "https://football-command-center.streamlit.app/"
@@ -58,9 +59,6 @@ def render_yahoo_connection():
         st.caption("Keep the secret in Streamlit Secrets only — never commit it to GitHub.")
         return
 
-    if "yahoo_oauth_state" not in st.session_state:
-        st.session_state.yahoo_oauth_state = new_state()
-
     error = _query_value("error")
     code = _query_value("code")
     returned_state = _query_value("state")
@@ -69,9 +67,9 @@ def render_yahoo_connection():
         st.error(f"Yahoo authorization returned: {error}")
 
     if code and not st.session_state.get("yahoo_token"):
-        expected = st.session_state.get("yahoo_oauth_state")
-        if not returned_state or returned_state != expected:
-            st.error("Yahoo OAuth state check failed. Start the connection again from this dashboard.")
+        if not valid_state(returned_state, client_secret):
+            st.error("Yahoo OAuth state check failed. The callback was invalid or expired; start the connection again.")
+            st.query_params.clear()
         else:
             try:
                 st.session_state.yahoo_token = exchange_code(client_id, client_secret, redirect_uri, code)
@@ -87,7 +85,8 @@ def render_yahoo_connection():
         st.error(f"Yahoo token refresh failed: {exc}")
 
     if not token:
-        auth_url = authorization_url(client_id, redirect_uri, st.session_state.yahoo_oauth_state)
+        state = new_state(client_secret)
+        auth_url = authorization_url(client_id, redirect_uri, state)
         st.link_button("🔐 Connect Yahoo Fantasy", auth_url, use_container_width=True, type="primary")
         st.caption("Read-only connection. The dashboard cannot add/drop players or change your Yahoo lineup.")
         return
@@ -96,7 +95,7 @@ def render_yahoo_connection():
     c1.success("🟢 Yahoo authenticated")
     if c2.button("Disconnect Yahoo", use_container_width=True):
         st.session_state.pop("yahoo_token", None)
-        st.session_state.yahoo_oauth_state = new_state()
+        st.session_state.pop("yahoo_discovery", None)
         st.rerun()
 
     if st.button("🏈 Test live Fantasy connection", use_container_width=True):
