@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import base64
+import hashlib
+import hmac
 import secrets
 import time
 from typing import Any
@@ -25,8 +27,26 @@ def authorization_url(client_id: str, redirect_uri: str, state: str) -> str:
     return f"{AUTH_URL}?{urlencode(params)}"
 
 
-def new_state() -> str:
-    return secrets.token_urlsafe(24)
+def new_state(client_secret: str) -> str:
+    """Create a signed OAuth state that survives a new Streamlit session on callback."""
+    issued_at = str(int(time.time()))
+    nonce = secrets.token_urlsafe(18)
+    body = f"{issued_at}.{nonce}"
+    signature = hmac.new(client_secret.encode("utf-8"), body.encode("utf-8"), hashlib.sha256).hexdigest()
+    return f"{body}.{signature}"
+
+
+def valid_state(state: str | None, client_secret: str, max_age_seconds: int = 900) -> bool:
+    if not state:
+        return False
+    try:
+        issued_at, nonce, signature = state.split(".", 2)
+        body = f"{issued_at}.{nonce}"
+        expected = hmac.new(client_secret.encode("utf-8"), body.encode("utf-8"), hashlib.sha256).hexdigest()
+        age = int(time.time()) - int(issued_at)
+        return 0 <= age <= max_age_seconds and hmac.compare_digest(signature, expected)
+    except (TypeError, ValueError):
+        return False
 
 
 def _basic_auth(client_id: str, client_secret: str) -> str:
@@ -83,5 +103,4 @@ def fantasy_get(access_token: str, resource: str, params: dict[str, Any] | None 
 
 
 def discover_nfl_leagues(access_token: str) -> dict[str, Any]:
-    # Yahoo's user game collection is the safest first discovery call: no hard-coded league/team keys.
     return fantasy_get(access_token, "users;use_login=1/games;game_codes=nfl/leagues")
