@@ -1,5 +1,5 @@
 from state import PoolState
-from dashboard_app import set_survivor_pick_compat, advance_week_compat
+from survivor_runtime_compat import set_survivor_pick_compat, advance_week_compat
 
 state = PoolState()
 set_survivor_pick_compat(state, 1, "JAX")
