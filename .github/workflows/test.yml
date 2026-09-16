@@ -58,6 +58,9 @@ jobs:
       - name: Run Survivor control state test
         run: python survivor_control_state_test.py
 
+      - name: Run Survivor runtime compatibility test
+        run: python survivor_runtime_compat_test.py
+
       - name: Run pool strategy test
         run: python pool_strategy_test.py
 
@@ -74,4 +77,4 @@ jobs:
         run: python sportsline_intelligence_test.py
 
       - name: Compile dashboard modules
-        run: python -m py_compile dashboard_service.py dashboard_app.py pages/Survivor_Control.py fantasy_gm.py fantasy_rankings_provider.py fantasy_draft_strategy.py sportsline_intelligence.py
+        run: python -m py_compile dashboard_service.py dashboard_app.py pages/Survivor_Control.py survivor_runtime_compat.py fantasy_gm.py fantasy_rankings_provider.py fantasy_draft_strategy.py sportsline_intelligence.py
