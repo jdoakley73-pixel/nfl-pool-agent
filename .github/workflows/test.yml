@@ -12,6 +12,7 @@ on:
       - feature/draft-slot-11-command-center
       - fix/fantasy-player-feed-draft-ready
       - feature/sportsline-intelligence
+      - feature/survivor-pick-tracking
 
 jobs:
   test:
@@ -52,6 +53,9 @@ jobs:
       - name: Run Survivor state test
         run: python survivor_state_test.py
 
+      - name: Run Survivor control state test
+        run: python survivor_control_state_test.py
+
       - name: Run pool strategy test
         run: python pool_strategy_test.py
 
@@ -68,4 +72,4 @@ jobs:
         run: python sportsline_intelligence_test.py
 
       - name: Compile dashboard modules
-        run: python -m py_compile dashboard_service.py dashboard_app.py fantasy_gm.py fantasy_rankings_provider.py fantasy_draft_strategy.py sportsline_intelligence.py
+        run: python -m py_compile dashboard_service.py dashboard_app.py pages/Survivor_Control.py fantasy_gm.py fantasy_rankings_provider.py fantasy_draft_strategy.py sportsline_intelligence.py
