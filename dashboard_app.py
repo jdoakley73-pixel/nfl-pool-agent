@@ -37,6 +37,28 @@ st.title("🏈 Football Command Center")
 st.caption("Survivor + Pick'em + Fantasy GM")
 state = load_state()
 
+
+def set_survivor_pick_compat(pool_state, week: int, team: str) -> None:
+    """Record/correct a Survivor pick even if Streamlit has a stale PoolState class loaded."""
+    team = team.strip().upper()
+    previous = pool_state.survivor_picks.get(week)
+    if previous == team:
+        return
+    if team in pool_state.survivor_used_teams and team != previous:
+        raise ValueError(f"{team} has already been used in Survivor.")
+    if previous:
+        pool_state.survivor_used_teams.discard(previous)
+    pool_state.survivor_picks[week] = team
+    pool_state.survivor_used_teams.add(team)
+
+
+def advance_week_compat(pool_state, week: int) -> None:
+    week = int(week)
+    if not 1 <= week <= 18:
+        raise ValueError("NFL week must be between 1 and 18.")
+    pool_state.current_week = week
+
+
 with st.sidebar:
     st.header("Command Center")
     pool_size = st.number_input("Estimated Survivor entries", min_value=2, max_value=5000, value=75, step=1)
@@ -49,7 +71,7 @@ with st.sidebar:
         index=max(0, min(17, state.current_week - 1)),
     )
     if st.button("Set active week", use_container_width=True):
-        state.advance_to_week(int(selected_week))
+        advance_week_compat(state, int(selected_week))
         save_state(state)
         st.cache_data.clear()
         st.rerun()
@@ -121,7 +143,7 @@ with survivor_tab:
         )
         if st.button("Save Survivor pick", type="primary", use_container_width=True):
             try:
-                state.set_survivor_pick(pick_week, pick_team)
+                set_survivor_pick_compat(state, pick_week, pick_team)
                 save_state(state)
                 st.cache_data.clear()
                 st.success(f"Saved Week {pick_week}: {pick_team}. {pick_team} is now burned.")
@@ -301,74 +323,45 @@ with fantasy_tab:
                 st.caption(f"Upcoming turn picks: {next_picks[0]} → {next_picks[1]}. We can plan the pair instead of treating them as isolated picks.")
 
             pos_filter = st.multiselect("Show positions", ["QB", "RB", "WR", "TE", "K", "DST"], default=["QB", "RB", "WR", "TE"])
-            visible = [row for row in board if row["position"] in pos_filter][:75]
-            board_df = pd.DataFrame(visible)
-            board_df["draft_score"] = board_df["draft_score"].round(1)
-            board_df["player"] = board_df.apply(lambda r: f"{r['name']} ({r['team']})", axis=1)
-            board_df["pos"] = board_df.apply(lambda r: f"{r['position']}{r['position_rank']}", axis=1)
-            st.dataframe(board_df[["player", "pos", "rank", "adp", "tier", "bye", "draft_score"]], use_container_width=True, hide_index=True, height=430)
+            visible = [row for row in board if row["position"] in pos_filter]
+            st.dataframe(pd.DataFrame(visible[:50]), use_container_width=True, hide_index=True, height=520)
 
-            drafted_name = st.selectbox("Player just drafted", [row["name"] for row in board])
-            d1, d2 = st.columns(2)
-            if d1.button("Mine", use_container_width=True):
-                player = next(p for p in draft_pool if p.name == drafted_name)
-                st.session_state.draft_roster.append(player)
-                st.session_state.draft_log.append({"pick": current_overall_pick, "player": player.name, "team": "Mine", "position": player.position})
-                draft_pool.remove(player)
-                st.rerun()
-            if d2.button("Someone else", use_container_width=True):
-                player = next(p for p in draft_pool if p.name == drafted_name)
-                st.session_state.draft_log.append({"pick": current_overall_pick, "player": player.name, "team": "Other", "position": player.position})
-                draft_pool.remove(player)
-                st.rerun()
-        else:
-            st.warning("No live players are loaded yet.")
-
-        with st.expander("Manual player entry"):
-            with st.form("add_available_player", clear_on_submit=True):
-                p1, p2, p3 = st.columns(3)
-                name = p1.text_input("Player")
-                position = p2.selectbox("Position", ["RB", "WR", "QB", "TE", "K", "DST"])
-                team = p3.text_input("NFL team")
-                p4, p5, p6 = st.columns(3)
-                rank = p4.number_input("Rank", min_value=1, max_value=500, value=100)
-                adp = p5.number_input("ADP", min_value=1.0, max_value=500.0, value=100.0)
-                tier = p6.number_input("Tier", min_value=1, max_value=30, value=5)
-                if st.form_submit_button("Add to board") and name.strip():
-                    draft_pool.append(
-                        DraftPlayer(
-                            name=name.strip(),
-                            position=position,
-                            team=team.strip().upper(),
-                            rank=int(rank),
-                            adp=float(adp),
-                            tier=int(tier),
-                        )
-                    )
+            if visible:
+                available_names = [row["name"] for row in visible]
+                selected_name = st.selectbox("Player just drafted", available_names)
+                draft_action1, draft_action2 = st.columns(2)
+                if draft_action1.button("Mine", use_container_width=True):
+                    player = next((p for p in draft_pool if p.name == selected_name), None)
+                    if player:
+                        st.session_state.draft_roster.append(player)
+                        st.session_state.draft_log.append({"pick": current_overall_pick, "player": selected_name, "mine": True})
+                        st.session_state[board_key] = [p for p in draft_pool if p.name != selected_name]
+                        st.rerun()
+                if draft_action2.button("Someone else", use_container_width=True):
+                    st.session_state.draft_log.append({"pick": current_overall_pick, "player": selected_name, "mine": False})
+                    st.session_state[board_key] = [p for p in draft_pool if p.name != selected_name]
                     st.rerun()
 
-        roster_col, log_col = st.columns(2)
-        with roster_col:
-            with st.expander("My roster", expanded=True):
-                if st.session_state.draft_roster:
-                    st.dataframe(
-                        pd.DataFrame([{"Player": p.name, "Pos": p.position, "Team": p.team, "Bye": p.bye} for p in st.session_state.draft_roster]),
-                        use_container_width=True,
-                        hide_index=True,
-                    )
-                else:
-                    st.write("No players drafted yet.")
-        with log_col:
-            with st.expander("Draft log", expanded=True):
-                if st.session_state.draft_log:
-                    st.dataframe(pd.DataFrame(st.session_state.draft_log), use_container_width=True, hide_index=True)
-                else:
-                    st.write("Draft has not started.")
+        with st.expander("Manual player entry"):
+            manual_name = st.text_input("Player name")
+            manual_pos = st.selectbox("Position", ["QB", "RB", "WR", "TE", "K", "DST"], key="manual_pos")
+            manual_team = st.text_input("NFL team", value="FA")
+            if st.button("Add manual player to my roster") and manual_name.strip():
+                st.session_state.draft_roster.append(
+                    DraftPlayer(name=manual_name.strip(), position=manual_pos, team=manual_team.strip().upper(), rank=999, adp=999.0, tier=99)
+                )
+                st.session_state.draft_log.append({"pick": current_overall_pick, "player": manual_name.strip(), "mine": True})
+                st.rerun()
 
-        st.caption("Draft rankings source: live FantasyPros consensus board. Manual pick tracking powers the live turn planner until Yahoo read-only API access is available.")
+        st.markdown("### My roster")
+        if st.session_state.draft_roster:
+            roster_rows = [
+                {"Player": p.name, "Pos": p.position, "Team": p.team, "Bye": p.bye or "—"}
+                for p in st.session_state.draft_roster
+            ]
+            st.dataframe(pd.DataFrame(roster_rows), use_container_width=True, hide_index=True)
+        else:
+            st.info("No players drafted yet.")
 
     with weekly_mode:
         render_weekly_gm()
-
-st.divider()
-st.caption("PoolHost and Yahoo remain the official submission venues. This is the decision layer.")
