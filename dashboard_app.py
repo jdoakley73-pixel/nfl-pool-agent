@@ -5,8 +5,15 @@ from dashboard_service import build_command_center_data
 from fantasy_draft_strategy import build_pick_target_tiers, build_turn_recommendations, snake_attack_map, upcoming_user_picks
 from fantasy_gm import DraftPlayer, rank_draft_board, roster_counts
 from fantasy_rankings_provider import fetch_live_rankings
-from state import load_state
+from state import load_state, save_state
 from weekly_gm_ui import render_weekly_gm
+
+NFL_TEAMS = [
+    "ARI", "ATL", "BAL", "BUF", "CAR", "CHI", "CIN", "CLE",
+    "DAL", "DEN", "DET", "GB", "HOU", "IND", "JAX", "KC",
+    "LAC", "LAR", "LV", "MIA", "MIN", "NE", "NO", "NYG",
+    "NYJ", "PHI", "PIT", "SEA", "SF", "TB", "TEN", "WSH",
+]
 
 st.set_page_config(page_title="Football Command Center", page_icon="🏈", layout="wide")
 st.markdown("""
@@ -34,17 +41,38 @@ with st.sidebar:
     st.header("Command Center")
     pool_size = st.number_input("Estimated Survivor entries", min_value=2, max_value=5000, value=75, step=1)
     st.metric("Season", state.season)
-    st.metric("Current week", state.current_week)
+
+    st.markdown("### Survivor Control")
+    selected_week = st.selectbox(
+        "Active NFL week",
+        options=list(range(1, 19)),
+        index=max(0, min(17, state.current_week - 1)),
+    )
+    if st.button("Set active week", use_container_width=True):
+        state.advance_to_week(int(selected_week))
+        save_state(state)
+        st.cache_data.clear()
+        st.rerun()
+
     st.write("**Used Survivor teams**")
     st.write(", ".join(sorted(state.survivor_used_teams)) if state.survivor_used_teams else "None")
+
+    if state.survivor_picks:
+        st.write("**Pick history**")
+        for week, team in sorted(state.survivor_picks.items()):
+            st.write(f"Week {week}: **{team}**")
+
     if st.button("Refresh live NFL data", use_container_width=True):
         st.cache_data.clear()
         st.rerun()
 
 
 @st.cache_data(ttl=1800, show_spinner=False)
-def load_dashboard_snapshot(pool_size_value: int):
-    return build_command_center_data(state=load_state(), pool_size=pool_size_value)
+def load_dashboard_snapshot(pool_size_value: int, week_value: int, used_teams_value: tuple):
+    fresh_state = load_state()
+    fresh_state.current_week = int(week_value)
+    fresh_state.survivor_used_teams = set(used_teams_value)
+    return build_command_center_data(state=fresh_state, pool_size=pool_size_value)
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
@@ -54,7 +82,11 @@ def load_fantasy_rankings(scoring: str):
 
 with st.spinner("Building the live football board…"):
     try:
-        snapshot = load_dashboard_snapshot(int(pool_size))
+        snapshot = load_dashboard_snapshot(
+            int(pool_size),
+            int(state.current_week),
+            tuple(sorted(state.survivor_used_teams)),
+        )
     except Exception as exc:
         st.error("The live NFL board could not be generated right now.")
         st.exception(exc)
@@ -67,6 +99,43 @@ with survivor_tab:
     primary = decision["recommended_score"]
     alternative = decision.get("alternative_score")
     st.subheader(f"Week {snapshot['current_week']} Survivor")
+
+    with st.expander("📝 Record My Survivor Pick", expanded=True):
+        st.caption("Save the team you actually submitted to PoolHost. Once saved, that team is burned from future recommendations.")
+        pick_col1, pick_col2 = st.columns(2)
+        pick_week = int(
+            pick_col1.selectbox(
+                "Week",
+                options=list(range(1, 19)),
+                index=max(0, min(17, state.current_week - 1)),
+                key="survivor_pick_week",
+            )
+        )
+        existing_pick = state.survivor_picks.get(pick_week)
+        default_team_index = NFL_TEAMS.index(existing_pick) if existing_pick in NFL_TEAMS else 0
+        pick_team = pick_col2.selectbox(
+            "Team selected",
+            options=NFL_TEAMS,
+            index=default_team_index,
+            key="survivor_pick_team",
+        )
+        if st.button("Save Survivor pick", type="primary", use_container_width=True):
+            try:
+                state.set_survivor_pick(pick_week, pick_team)
+                save_state(state)
+                st.cache_data.clear()
+                st.success(f"Saved Week {pick_week}: {pick_team}. {pick_team} is now burned.")
+                st.rerun()
+            except ValueError as exc:
+                st.error(str(exc))
+
+        if state.survivor_picks:
+            history_rows = [
+                {"Week": week, "Team": team}
+                for week, team in sorted(state.survivor_picks.items())
+            ]
+            st.dataframe(pd.DataFrame(history_rows), use_container_width=True, hide_index=True)
+
     c1, c2 = st.columns(2)
     c1.metric("Pick", decision["recommended_team"])
     c2.metric("Verdict", decision["verdict"])
