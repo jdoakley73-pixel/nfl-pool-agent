@@ -30,6 +30,7 @@ class PoolState:
         week: int,
         team: str,
     ) -> None:
+        team = team.strip().upper()
         if team in self.survivor_used_teams:
             raise ValueError(
                 f"{team} has already been used in Survivor."
@@ -37,6 +38,28 @@ class PoolState:
 
         self.survivor_used_teams.add(team)
         self.survivor_picks[week] = team
+
+    def set_survivor_pick(self, week: int, team: str) -> None:
+        """Record or correct a Survivor pick while keeping used teams in sync."""
+        team = team.strip().upper()
+        previous = self.survivor_picks.get(week)
+
+        if previous == team:
+            return
+
+        if team in self.survivor_used_teams and team != previous:
+            raise ValueError(f"{team} has already been used in Survivor.")
+
+        if previous:
+            self.survivor_used_teams.discard(previous)
+
+        self.survivor_picks[week] = team
+        self.survivor_used_teams.add(team)
+
+    def advance_to_week(self, week: int) -> None:
+        if not 1 <= int(week) <= 18:
+            raise ValueError("NFL week must be between 1 and 18.")
+        self.current_week = int(week)
 
     def record_pickem_pick(
         self,
