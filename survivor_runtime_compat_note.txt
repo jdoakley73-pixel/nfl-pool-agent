@@ -1,0 +1,1 @@
+The deployed Streamlit process can retain an older PoolState class across hot reloads. Dashboard Survivor controls therefore use compatibility helpers that operate on the state object's public fields instead of requiring newly-added instance methods. A full app restart will also load the current PoolState class.
